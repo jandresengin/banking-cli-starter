@@ -1,0 +1,12 @@
+{
+  "name": "Banking CLI (.NET 10)",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "banking",
+  "workspaceFolder": "/workspace",
+  "overrideCommand": true,
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-dotnettools.csdevkit"]
+    }
+  }
+}

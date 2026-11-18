@@ -1,0 +1,32 @@
+services:
+  banking:
+    build: .
+    working_dir: /workspace
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    stdin_open: true
+    tty: true
+    command: dotnet run --project BankingCli --no-launch-profile
+
+  web:
+    build: .
+    working_dir: /workspace
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-luna}
+      ASPNETCORE_URLS: http://+:8080
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    ports:
+      - "127.0.0.1:5080:8080"
+    command: dotnet run --project BankingWeb --no-launch-profile
+
+volumes:
+  nuget-cache:

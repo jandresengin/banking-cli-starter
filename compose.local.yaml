@@ -1,0 +1,24 @@
+# Local-only override: use `-f compose.yaml -f compose.local.yaml` to select Ollama.
+services:
+  ollama:
+    image: ollama/ollama:0.40.16
+    volumes:
+      - ollama-models:/root/.ollama
+    # Ollama is reachable only by containers on the Compose network.
+
+  banking:
+    environment:
+      OPENAI_BASE_URL: http://ollama:11434/v1
+      OPENAI_API_KEY: ollama
+      OPENAI_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+      OPENAI_TEMPERATURE: "0"
+
+  web:
+    environment:
+      OPENAI_BASE_URL: http://ollama:11434/v1
+      OPENAI_API_KEY: ollama
+      OPENAI_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+      OPENAI_TEMPERATURE: "0"
+
+volumes:
+  ollama-models:
