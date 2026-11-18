@@ -10,7 +10,7 @@ FakeApi api = new();
 using BankingAssistant assistant = new(new HttpClient(api));
 
 api.Enqueue("{\"operation\":\"transfer\",\"account\":\"savings\",\"destination\":\"chequing\",\"amount\":\"4\"}");
-api.Enqueue("{\"choice\":\"1\"}");
+api.Enqueue("I moved $4.00 from savings to chequing. You now have $6.00 in savings and $4.00 in chequing.");
 string success = await assistant.ExecuteAsync("Move four dollars from savings to chequing", bank);
 Check(success == "I moved $4.00 from savings to chequing. You now have $6.00 in savings and $4.00 in chequing.", "successful conversational transfer");
 Check(bank.Execute("balance").Output == "chequing=$4.00 | savings=$6.00", "transfer balances");
@@ -25,8 +25,10 @@ Check(invented.Contains("No transaction was made") && !invented.Contains("accoun
 Check(bank.Execute("balance").Output == "chequing=$4.00 | savings=$6.00", "invented accounts leave balances unchanged");
 
 api.Enqueue("{\"operation\":\"withdraw\",\"account\":\"savings\",\"destination\":null,\"amount\":\"100\"}");
-api.Enqueue("{\"choice\":\"1\"}");
+api.Enqueue("I couldn't complete that transaction because there aren't enough funds. You have $6.00 in savings.");
 Check((await assistant.ExecuteAsync("Withdraw one hundred dollars from savings", bank)).Contains("aren't enough funds"), "declined withdrawal");
+api.Enqueue("I couldn’t complete that transaction because there aren’t enough funds. You have $6.00 in savings.");
+Check((await assistant.ExplainResultAsync("withdraw savings 100", "ERROR INSUFFICIENT_FUNDS | savings=$6.00")).Output.Contains("couldn’t"), "friendly reply accepts typographic apostrophes");
 
 api.Enqueue("{\"operation\":\"transfer\",\"account\":\"savings\",\"destination\":\"chequing\",\"amount\":\"1\"}");
 api.EnqueueFailure();
@@ -46,7 +48,7 @@ api.Enqueue("{\"operation\":\"deposit\",\"account\":\"savings\",\"destination\":
 AssistantResult proposal = await assistant.ExecuteDetailedAsync("Deposita 10 dolares a cuenta de ahorros", bank);
 Check(proposal.Stage == "confirmation_required" && proposal.Command == "deposit savings 10", "translated request requires confirmation");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$7.00", "proposal does not change balances");
-api.Enqueue("{\"choice\":\"1\"}");
+api.Enqueue("I deposited $10.00 into savings. You now have $17.00 in savings.");
 Check((await assistant.ExecuteAsync("yes", bank)).Contains("deposited $10.00"), "confirmation executes proposed command");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$17.00", "confirmed deposit runs exactly once");
 api.Enqueue("{\"operation\":\"withdraw\",\"account\":\"savings\",\"destination\":null,\"amount\":\"7\"}");
@@ -54,7 +56,7 @@ Check((await assistant.ExecuteDetailedAsync("withdraw saving 7", bank)).Stage ==
 Check((await assistant.ExecuteAsync("no", bank)).StartsWith("Cancelled"), "confirmation can be cancelled");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$17.00", "cancelled proposal leaves balances unchanged");
 string original = bank.Execute("deposit savings 2").Output;
-api.Enqueue("{\"choice\":\"1\"}");
+api.Enqueue("I deposited $2.00 into savings. You now have $19.00 in savings.");
 AssistantResult explained = await assistant.ExplainResultAsync("deposit savings 2", original);
 Check(explained.Output == "I deposited $2.00 into savings. You now have $19.00 in savings.", "original command receives a conversational reply");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$19.00", "explaining original command does not repeat it");
@@ -62,6 +64,10 @@ original = bank.Execute("withdraw savings 1").Output;
 api.EnqueueFailure();
 Check((await assistant.ExplainResultAsync("withdraw savings 1", original)).Output == original, "original command reply failure returns simulator result");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$18.00", "original command reply failure does not repeat withdrawal");
+api.Enqueue("I moved $5.00 from chequing to savings. Savings is $18.00.");
+Check((await assistant.ExplainResultAsync("balance", "chequing=$5.00 | savings=$18.00")).Output == "chequing=$5.00 | savings=$18.00", "balance reply cannot claim a transfer occurred");
+api.Enqueue("You have $18.00 in chequing and $5.00 in savings.");
+Check((await assistant.ExplainResultAsync("balance", "chequing=$5.00 | savings=$18.00")).Output == "chequing=$5.00 | savings=$18.00", "balance reply cannot swap account amounts");
 api.Enqueue("{\"operation\":\"deposit\",\"account\":\"savings\",\"destination\":null,\"amount\":\"10\"}");
 Check((await assistant.ExecuteDetailedAsync("Dépose 10 dollars dans mon compte d'épargne", bank)).Stage == "confirmation_required", "French translation requires confirmation");
 Check((await assistant.ExecuteAsync("no", bank)).StartsWith("Cancelled"), "French proposal can be cancelled");

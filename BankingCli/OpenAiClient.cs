@@ -8,15 +8,26 @@ namespace BankingCli;
 internal sealed class OpenAiClient : IDisposable
 {
     private readonly HttpClient http;
+    private readonly bool useConfiguredTemperature;
     private readonly string endpoint = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
     private readonly string model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-6-luna";
     private readonly string? key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
     public bool IsConfigured => !string.IsNullOrWhiteSpace(key);
+    public string? LastResponse { get; private set; }
+    public void ClearTrace() => LastResponse = null;
 
-    public OpenAiClient(HttpClient? httpClient = null) => http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+    public OpenAiClient(HttpClient? httpClient = null, string? baseUrl = null, string? modelName = null, string? apiKey = null)
+    {
+        http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+        useConfiguredTemperature = baseUrl is null;
+        if (baseUrl is not null) endpoint = baseUrl;
+        if (modelName is not null) model = modelName;
+        if (apiKey is not null) key = apiKey;
+    }
 
     public async Task<string> CompleteAsync(string system, string user, bool structured, object? schema = null)
     {
+        LastResponse = null;
         try
         {
             if (!Uri.TryCreate(endpoint.TrimEnd('/') + "/chat/completions", UriKind.Absolute, out Uri? uri)
@@ -30,7 +41,7 @@ internal sealed class OpenAiClient : IDisposable
             if (structured)
                 body["response_format"] = new { type = "json_schema", json_schema = new { name = "bank_response", strict = true, schema = schema ?? InterpretationSchema } };
             // Some providers and models do not support temperature; configure it only when requested.
-            if (decimal.TryParse(Environment.GetEnvironmentVariable("OPENAI_TEMPERATURE"), System.Globalization.NumberStyles.Float,
+            if (useConfiguredTemperature && decimal.TryParse(Environment.GetEnvironmentVariable("OPENAI_TEMPERATURE"), System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out decimal temperature) && temperature is >= 0 and <= 2)
                 body["temperature"] = temperature;
             request.Content = JsonContent.Create(body);
@@ -38,8 +49,10 @@ internal sealed class OpenAiClient : IDisposable
             using HttpResponseMessage response = await http.SendAsync(request);
             response.EnsureSuccessStatusCode();
             using JsonDocument document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-            return document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()
+            string content = document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()
                 ?? throw new JsonException("Missing response content.");
+            LastResponse = content;
+            return content;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or ArgumentException or KeyNotFoundException or IndexOutOfRangeException)
         {
@@ -56,9 +69,11 @@ internal sealed class OpenAiClient : IDisposable
             operation = new { type = "string", @enum = new[] { "deposit", "withdraw", "transfer", "balance", "clarify" } },
             account = new { type = new[] { "string", "null" } },
             destination = new { type = new[] { "string", "null" } },
-            amount = new { type = new[] { "string", "null" } }
+            amount = new { type = new[] { "string", "null" } },
+            needs_clarification = new { type = "boolean" },
+            needs_confirmation = new { type = "boolean" }
         },
-        required = new[] { "operation", "account", "destination", "amount" },
+        required = new[] { "operation", "account", "destination", "amount", "needs_clarification", "needs_confirmation" },
         additionalProperties = false
     };
 

@@ -2,6 +2,7 @@ const form = document.querySelector('#request-form');
 const input = document.querySelector('#input');
 const messages = document.querySelector('#messages');
 const send = document.querySelector('#send');
+const provider = document.querySelector('#provider');
 const balanceStatus = document.querySelector('#balance-status');
 let sessionReady = false;
 
@@ -18,7 +19,11 @@ async function initializeSession() {
   try {
     const response = await fetch('/api/session', { cache: 'no-store' });
     if (!response.ok) throw new Error('Session unavailable');
-    updateBalances((await response.json()).balances);
+    const session = await response.json();
+    updateBalances(session.balances);
+    const openAiOption = provider.querySelector('option[value="openai"]');
+    openAiOption.disabled = !session.openAiAvailable;
+    openAiOption.textContent = session.openAiAvailable ? 'OpenAI · GPT-6 Luna' : 'OpenAI · not configured';
     sessionReady = true;
     send.disabled = false;
   } catch {
@@ -59,8 +64,12 @@ function addTrace(wrapper, result) {
   summary.textContent = 'View processing details';
   details.append(summary);
   const lines = [];
+  if (result.aiInterpretation || result.aiReply) lines.push(`AI provider: ${provider.value === 'openai' ? 'OpenAI' : 'Ollama (local)'}`);
   if (result.command) lines.push(`Interpreted command: ${result.command}`);
+  if (result.aiInterpretation) lines.push(`AI interpretation (unverified): ${result.aiInterpretation}`);
   if (result.simulatorResult) lines.push(`Simulator: ${result.simulatorResult}`);
+  if (result.aiReply) lines.push(`AI-generated reply (before validation): ${result.aiReply}`);
+  if (result.aiError) lines.push(result.aiError);
   const stages = {
     original_command: 'Original command sent directly to the simulator.',
     original_explained: 'Original command executed by the simulator; conversational response accepted.',
@@ -92,8 +101,9 @@ form.addEventListener('submit', async event => {
   input.value = '';
   addMessage('YOU', text, 'user');
   send.disabled = true;
+  provider.disabled = true;
   try {
-    const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: text }) });
+    const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: text, provider: provider.value }) });
     const result = await response.json();
     if (!response.ok) throw new Error('Request failed');
     updateBalances(result.balances);
@@ -112,5 +122,5 @@ form.addEventListener('submit', async event => {
     }
   } catch {
     addMessage('ASSISTANT', 'The service is unavailable. Please check whether the server is running.', 'assistant');
-  } finally { send.disabled = !sessionReady; input.focus(); }
+  } finally { send.disabled = !sessionReady; provider.disabled = false; input.focus(); }
 });

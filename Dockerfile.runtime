@@ -1,0 +1,13 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /source
+COPY BankingCli/ BankingCli/
+COPY BankingWeb/ BankingWeb/
+RUN dotnet publish BankingWeb/BankingWeb.csproj -c Release -o /publish --no-self-contained
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+WORKDIR /app
+COPY --from=build --chown=app:app /publish/ ./
+USER app
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "BankingWeb.dll"]

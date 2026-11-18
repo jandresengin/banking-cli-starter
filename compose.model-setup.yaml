@@ -1,0 +1,6 @@
+# Temporary network access for downloading the model; do not use for normal operation.
+services:
+  ollama:
+    networks:
+      - inference
+      - frontend

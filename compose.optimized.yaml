@@ -1,0 +1,32 @@
+name: banking-optimized
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    environment:
+      OPENAI_BASE_URL: http://ollama:11434/v1
+      OPENAI_API_KEY: ollama
+      OPENAI_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+      OPENAI_TEMPERATURE: "0"
+      DIRECT_OPENAI_API_KEY: ${DIRECT_OPENAI_API_KEY:-}
+      DIRECT_OPENAI_MODEL: ${DIRECT_OPENAI_MODEL:-gpt-6-luna}
+    ports:
+      - "127.0.0.1:5081:8080"
+    networks:
+      - frontend
+      - inference
+    depends_on:
+      - ollama
+  ollama:
+    image: ollama/ollama:0.40.16
+    volumes:
+      - models:/root/.ollama
+    networks:
+      - inference
+networks:
+  frontend:
+  inference:
+    internal: true
+volumes:
+  models:

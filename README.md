@@ -18,13 +18,13 @@ Replace the placeholder with your own key. Compose passes these values into the 
 
 Example English inputs: `Deposit ten dollars into savings`, `Move four dollars from savings to chequing`, `What's the balance in both accounts?`, `Withdraw one hundred dollars from savings`, and `Move four dollars`.
 
-English requests go to the API for interpretation and are validated before the simulator runs. Unclear requests are rejected without modifying balances. After execution, the API selects between two conversational explanations constructed from the simulator's actual result; only a valid selection is accepted, preventing altered facts. If that call fails or returns something else, the original simulator result is displayed without rerunning the command. Original commands do not require an API key.
+English requests go to the API for interpretation and are validated before the simulator runs. Unclear requests are rejected without modifying balances. After execution, the API writes a conversational explanation based on the simulator's actual result. The application checks amounts, account names, and certain outcome and direction indicators; these checks cannot prove semantic equivalence. If the call fails or the response fails validation, the original simulator result is displayed without rerunning the command. Original commands do not require an API key.
 
 ## Design
 
 `Program.cs` starts `BankingApplication`, which owns the console loop and a single `BankSession`. The original simulator remains responsible for all banking rules and balances. `CommandRouter` recognizes direct commands; `BankingAssistant` coordinates natural-language requests. `RequestInterpreter` validates the structured interpretation and creates one command, `OpenAiClient` handles HTTP calls and provider response errors, and `ReplyWriter` produces the response based on the simulator output. Separating the two API calls ensures the command is never repeated when response generation fails.
 
-The assistant deliberately limits the second call to selecting from two preconstructed explanations: this sacrifices wording variety to avoid accepting an explanation with incorrect amounts, accounts, or transaction status. If the API returns an invalid selection, the application shows the simulator's original output.
+The model generates the explanation. Validation is deliberately conservative but cannot guarantee a model's wording is semantically correct. The simulator output remains available in processing details. This is a simulation, not a real banking system.
 
 ## Verification
 
@@ -42,6 +42,24 @@ These checks use simulated API responses, not a live provider. A live API check 
 - Chose to execute the simulator exactly once and return its original output if the reply call fails. Checked this with a simulated API failure and verified that the transfer changed each balance only once.
 
 ## Run
+
+### Optimized two-container demo
+
+The separate `compose.optimized.yaml` runs a published ASP.NET application as a non-root user and Ollama on an internal Docker network. No development container or SDK is needed at runtime. The optimized web demo listens only on `http://localhost:5081` and uses a separate model volume and separate simulated sessions.
+
+On the first run, temporarily allow Ollama to reach the model registry:
+
+```sh
+docker compose -f compose.optimized.yaml -f compose.model-setup.yaml up -d ollama
+docker compose -f compose.optimized.yaml -f compose.model-setup.yaml exec ollama ollama pull gemma3:1b
+docker compose -f compose.optimized.yaml up -d --build --force-recreate
+```
+
+The final command recreates Ollama without the temporary external network. Ollama publishes no host port; only containers attached to the internal network can reach it. Docker administrators can attach other containers, so this is network isolation, not authentication. Later starts only need `docker compose -f compose.optimized.yaml up -d`.
+
+The web model selector defaults to local Gemma. To enable the optional direct OpenAI choice, set `DIRECT_OPENAI_API_KEY` in your local `.env` and optionally `DIRECT_OPENAI_MODEL` (defaults to `gpt-6-luna`), then recreate the optimized web container. The key stays server-side and `.env` must not be committed. Direct OpenAI billing is separate from Azure credits. Changing providers cancels an outstanding confirmation; balances remain in the same simulated session. The optimized Compose setup currently starts Ollama even when OpenAI is selected.
+
+This Compose configuration is for local testing. Azure Container Apps does not directly use these Docker networks; private ingress, model provisioning, HTTPS, allowed hosts, and state behavior need an Azure-specific deployment design before public access.
 
 ### Local AI with Ollama
 
@@ -68,7 +86,9 @@ The web demo runs with `docker compose up -d web` and is bound to `127.0.0.1:508
 
 In the web interface, direct transaction commands also receive a conversational explanation based on the simulator result; `help` and `?` show a friendly guide with examples. If the explanation service fails, the original result is displayed. The CLI preserves the original command output and works for those commands without an API key.
 
-The account cards read balances from the same simulator session after each request. The interface shows the interpreted command and a tentative summary when the request needs clarification. Common Spanish and French banking terms, including mixed-language phrases, `saving`, and a few spelling mistakes are normalized; the resulting English command requires an explicit `yes` before execution, or `no` to cancel. Other unsupported or ambiguous phrases require the user to try again. Account names not present in the request or a supported alias are not used to execute a generated command. This language handling is limited and does not guarantee translation of every phrase. Models can still misinterpret amounts or intent; this demonstration must not be used for real financial transactions. In the web demo, `exit` ends the current simulated session; a new session starts at zero.
+The account cards read balances from the same simulator session after each request. The model receives the original request and its structured interpretation and generated reply can be viewed in processing details. Account aliases and uncertain interpretations require confirmation; other unsupported or ambiguous phrases require the user to try again. Account names not present in the request or a supported alias are not used to execute a generated command. Language handling is limited and models can still misinterpret amounts or intent. In the web demo, `exit` ends the current simulated session; a new session starts at zero.
+
+For HTTPS behind Azure ingress, `APP_PUBLIC_ORIGIN` can be set to the exact public HTTPS origin (for example `https://example.azurecontainerapps.io`). This enables that host and secure session cookies. Azure-specific ingress, secret management, access control, request limiting, and persistent session decisions must be configured and tested separately before exposing the demo.
 
 ### Docker (no local .NET SDK required)
 

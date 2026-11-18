@@ -8,7 +8,7 @@ namespace BankingCli;
 internal sealed class RequestInterpreter(OpenAiClient client)
 {
     private const string Prompt = """
-        Extract ONE banking request as JSON: operation, account, destination, amount.
+        Interpret the user's original request in English, Spanish, French or a mixture. Extract ONE banking request as JSON: operation, account, destination, amount, needs_clarification, needs_confirmation.
         Operations: deposit, withdraw, transfer, balance, clarify. Accounts: savings, chequing.
         Convert number words to a decimal amount string. account is the source for a transfer.
         Null means absent. Only one account in deposit or withdraw; destination must be null.
@@ -42,12 +42,14 @@ internal sealed class RequestInterpreter(OpenAiClient client)
         JSON: {"operation":"withdraw","account":"savings","destination":null,"amount":"7"}
         Request: deposit 10 dollars to savings
         JSON: {"operation":"deposit","account":"savings","destination":null,"amount":"10"}
+        Set needs_clarification true if essential information is absent or ambiguous, or multiple operations are requested.
+        Set needs_confirmation true if spelling, translation, or uncertainty could change the intended operation, account, amount, or direction.
         """;
 
     public async Task<Interpretation> InterpretAsync(string input)
     {
-        (string normalizedInput, bool needsConfirmation) = InputNormalizer.Normalize(input);
-        string json = await client.CompleteAsync(Prompt, normalizedInput, structured: true);
+        string normalizedInput = input;
+        string json = await client.CompleteAsync(Prompt, input, structured: true);
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
@@ -56,6 +58,8 @@ internal sealed class RequestInterpreter(OpenAiClient client)
             string? account = root.GetProperty("account").GetString();
             string? destination = root.GetProperty("destination").GetString();
             string? amount = root.GetProperty("amount").GetString();
+            bool needsClarification = root.TryGetProperty("needs_clarification", out JsonElement clarify) && clarify.ValueKind == JsonValueKind.True;
+            bool needsConfirmation = root.TryGetProperty("needs_confirmation", out JsonElement confirm) && confirm.ValueKind == JsonValueKind.True;
             bool validAccount = account is "savings" or "chequing";
             bool validDestination = destination is "savings" or "chequing";
             bool validAmount = amount is not null && Regex.IsMatch(amount, @"^\d+(\.\d{1,2})?$")
@@ -69,6 +73,9 @@ internal sealed class RequestInterpreter(OpenAiClient client)
                 "transfer" when validAccount && validDestination && account != destination && validAmount => $"transfer {account} {destination} {amount}",
                 _ => null
             };
+            if (needsClarification) command = null;
+            // Aliases and non-English account names require explicit user confirmation.
+            if (command is not null && Regex.IsMatch(input, @"\b(?:saving|ahorros?|[ée]pargne|corriente|cheques)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) needsConfirmation = true;
             // Do not allow a model to invent an account the user never named.
             // A misspelled account is treated as ambiguous and requires clarification.
             if (command is not null && validAccount && !MentionsAccount(normalizedInput, account!)) command = null;
@@ -102,7 +109,7 @@ internal sealed class RequestInterpreter(OpenAiClient client)
 
     private static bool MentionsAccount(string input, string account)
     {
-        string pattern = account == "chequing" ? @"\b(?:chequing|checking)\b" : @"\bsavings\b";
+        string pattern = account == "chequing" ? @"\b(?:chequing|checking|corriente|cheques|courant)\b" : @"\b(?:savings|saving|ahorros?|[ée]pargne)\b";
         return Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 }
