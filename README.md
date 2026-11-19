@@ -1,173 +1,65 @@
-# banking-cli-starter
+# Virtual Bank Assistant
 
-## Quick start for reviewers
+A .NET 10 banking simulator with a web interface. Ask in everyday English, or use the original commands. Choose local Gemma through Ollama or an OpenAI model through the selector. Both use an OpenAI-compatible API. Balances are simulated and kept in memory.
 
-Install and start Docker Desktop: [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Use Linux containers. Install [Git](https://git-scm.com/install/) or download the repository as a ZIP from GitHub.
+## Run locally
 
-Clone the solution branch and start the local web application:
+1. Install [Git](https://git-scm.com/install/) and Docker Desktop for [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Start Docker Desktop with Linux containers.
+2. Clone this branch and enter the project directory:
 
-```sh
-git clone --branch release/multilingual-banking-demo https://github.com/jandresengin/banking-cli-starter.git
-cd banking-cli-starter
-docker compose -f compose.optimized.yaml -f compose.model-setup.yaml up -d ollama
-docker compose -f compose.optimized.yaml -f compose.model-setup.yaml exec ollama ollama pull gemma3:1b
-docker compose -f compose.optimized.yaml up -d --build --force-recreate
-```
+   ```sh
+   git clone --branch release/multilingual-banking-demo https://github.com/jandresengin/banking-cli-starter.git
+   cd banking-cli-starter
+   ```
 
-Open http://localhost:5081. The first start downloads the container images and Gemma model; subsequent starts use `docker compose -f compose.optimized.yaml up -d`. Stop the application with `docker compose -f compose.optimized.yaml down`. The model volume is retained. Try `deposit savings 10`, `Move four dollars from savings to chequing`, or `balance`.
+3. To use OpenAI, create a file named `.env` in the project directory with these two lines:
 
-This setup uses local Ollama through its OpenAI-compatible API and requires no API key. To enable the optional OpenAI provider in the web selector, create an untracked `.env` in the repository root containing `DIRECT_OPENAI_API_KEY` and optionally `DIRECT_OPENAI_MODEL`, then recreate the web container. Never commit the key. Provider availability and charges depend on your account. The simulator uses temporary in-memory balances.
+   ```dotenv
+   DIRECT_OPENAI_API_KEY=your_openai_api_key
+   DIRECT_OPENAI_MODEL=gpt-6-luna
+   ```
 
-A small C# command-line banking simulator with in-memory chequing and savings accounts. Both accounts start at $0.00 each time you run the program. Original commands work directly; English requests use an OpenAI-compatible chat-completions API.
+   Replace the key with your own and use a model available to your OpenAI API account. API usage may incur charges. The `.env` file is ignored by Git; never share or commit it. **Gemma works without an OpenAI key**: skip this step if you only want the local model.
 
-## API configuration
+4. Build and start both containers:
 
-Set `OPENAI_API_KEY` in your environment. `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1` and `OPENAI_MODEL` defaults to `gpt-6-luna`; both can be changed. The model must support chat completions and JSON Schema structured output. Availability depends on your API account. API usage may incur charges.
+   ```sh
+   docker compose -f compose.azure-test.yaml up -d --build
+   ```
 
-For Docker Compose, create a local `.env` file in the repository root:
+   On first launch, Ollama downloads `gemma3:1b`; this can take several minutes. Check readiness with:
 
-```text
-OPENAI_API_KEY=your-key-here
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-6-luna
-```
+   ```sh
+   docker compose -f compose.azure-test.yaml logs -f ollama
+   ```
 
-Replace the placeholder with your own key. Compose passes these values into the container. The file is ignored by Git; do not commit or share credentials. If VS Code is already open in the dev container, rebuild or reopen it after changing the Compose configuration. For local .NET execution, set the same values as environment variables instead.
+   When the log says the model is available, open [http://localhost:5082](http://localhost:5082) and select **Gemma 3 · local** or **OpenAI**. If you change `.env` later, rerun the `up` command to recreate the web container.
 
-Example English inputs: `Deposit ten dollars into savings`, `Move four dollars from savings to chequing`, `What's the balance in both accounts?`, `Withdraw one hundred dollars from savings`, and `Move four dollars`.
+5. Stop the app with `docker compose -f compose.azure-test.yaml down`. The local model volume is retained. Sessions and balances reset when the server restarts.
 
-English requests go to the API for interpretation and are validated before the simulator runs. Unclear requests are rejected without modifying balances. After execution, the API writes a conversational explanation based on the simulator's actual result. The application checks amounts, account names, and certain outcome and direction indicators; these checks cannot prove semantic equivalence. If the call fails or the response fails validation, the original simulator result is displayed without rerunning the command. Original commands do not require an API key.
+## Try it
 
-## Design
+- `Deposit ten dollars into savings.`
+- `Move four dollars from savings to chequing.`
+- `What are my balances?`
+- `Withdraw 100 dollars from savings.`
+- `Move four dollars.` — missing accounts require clarification.
 
-`Program.cs` starts `BankingApplication`, which owns the console loop and a single `BankSession`. The original simulator remains responsible for all banking rules and balances. `CommandRouter` recognizes direct commands; `BankingAssistant` coordinates natural-language requests. `RequestInterpreter` validates the structured interpretation and creates one command, `OpenAiClient` handles HTTP calls and provider response errors, and `ReplyWriter` produces the response based on the simulator output. Separating the two API calls ensures the command is never repeated when response generation fails.
+Original commands remain available: `deposit <account> <amount>`, `withdraw <account> <amount>`, `transfer <from> <to> <amount>`, `balance [account]`, `help`, `?`, and `exit`. Accounts are `savings` and `chequing`; amounts must be positive with at most two decimal places.
 
-The model generates the explanation. Validation is deliberately conservative but cannot guarantee a model's wording is semantically correct. The simulator output remains available in processing details. This is a simulation, not a real banking system.
+The model interprets natural-language requests. Code validates the details and requests clarification or confirmation before executing when required. The simulator then executes once, and the model explains the result. If explanation generation fails or its facts fail validation, the original simulator result is shown without executing the command again. Processing details show the simulator result and model responses.
 
-## Verification
+## Checks
 
-Run `docker compose run --rm banking dotnet run --project Checks` to run the checks with a simulated API. The following were observed:
+Run the automated checks with `docker compose run --rm banking dotnet run --project Checks`. They use a simulated API. Observed checks:
 
-- Deposit $10 in savings, then ask to transfer $4 to chequing: the response reports the transfer; balances are $6 and $4.
-- Ask to move $4 without specifying accounts: a clarification is requested; balances remain $6 and $4.
-- Ask to withdraw $100 from savings: the simulator declines due to insufficient funds. A separate check simulates failure of the response-writing API and confirms that a $1 transfer runs once and returns its original result.
+1. Deposit $10 into savings and transfer $4 to chequing: balances were $6 and $4.
+2. Ask to move $4 without accounts: the app requested clarification and balances stayed unchanged.
+3. Simulate a reply API failure after a $1 transfer: the original simulator result was returned and the transfer ran once.
 
-These checks use simulated API responses, not a live provider. A live API check is still required after configuring a key.
+## How I worked
 
-## How this was built
+- Used OpenAI Codex to assist with implementation, containers, and verification.
+- Accepted the suggestion to validate model responses and return the simulator result if explanation generation fails. Checked it with simulated incorrect responses and an API failure to verify the transaction was not repeated.
 
-- Used OpenAI Codex to help implement the API integration, container setup, and checks. Reviewers should update this account if additional tools were used.
-- Chose to execute the simulator exactly once and return its original output if the reply call fails. Checked this with a simulated API failure and verified that the transfer changed each balance only once.
-
-## Run
-
-### Optimized two-container demo
-
-The separate `compose.optimized.yaml` runs a published ASP.NET application as a non-root user and Ollama on an internal Docker network. No development container or SDK is needed at runtime. The optimized web demo listens only on `http://localhost:5081` and uses a separate model volume and separate simulated sessions.
-
-On the first run, temporarily allow Ollama to reach the model registry:
-
-```sh
-docker compose -f compose.optimized.yaml -f compose.model-setup.yaml up -d ollama
-docker compose -f compose.optimized.yaml -f compose.model-setup.yaml exec ollama ollama pull gemma3:1b
-docker compose -f compose.optimized.yaml up -d --build --force-recreate
-```
-
-The final command recreates Ollama without the temporary external network. Ollama publishes no host port; only containers attached to the internal network can reach it. Docker administrators can attach other containers, so this is network isolation, not authentication. Later starts only need `docker compose -f compose.optimized.yaml up -d`.
-
-The web model selector defaults to local Gemma. To enable the optional direct OpenAI choice, set `DIRECT_OPENAI_API_KEY` in your local `.env` and optionally `DIRECT_OPENAI_MODEL` (defaults to `gpt-6-luna`), then recreate the optimized web container. The key stays server-side and `.env` must not be committed. Direct OpenAI billing is separate from Azure credits. Changing providers cancels an outstanding confirmation; balances remain in the same simulated session. The optimized Compose setup currently starts Ollama even when OpenAI is selected.
-
-This Compose configuration is for local testing. Azure Container Apps does not directly use these Docker networks; private ingress, model provisioning, HTTPS, allowed hosts, and state behavior need an Azure-specific deployment design before public access.
-
-### Local AI with Ollama
-
-This branch includes a local Ollama service. The model runs on your machine; requests sent to this service are not sent to OpenAI. Docker Desktop and enough disk space and RAM for the image and model are required. The first run downloads both.
-
-```sh
-docker compose -f compose.yaml -f compose.local.yaml up -d ollama web
-docker compose -f compose.yaml -f compose.local.yaml exec ollama ollama pull gemma3:1b
-```
-
-Open `http://localhost:5080` to use the local web interface. It shows the validated command and simulator result under processing details; these are observable steps, not the model's hidden reasoning. Alternatively, run the CLI with:
-
-```sh
-docker compose -f compose.yaml -f compose.local.yaml run --rm banking
-```
-
-Ollama is not exposed on a host port. The local override uses `ollama` as a non-secret placeholder; it does not read or transmit an OpenAI key. To stop these services without deleting the downloaded model, run `docker compose -f compose.yaml -f compose.local.yaml stop ollama web`.
-
-To try another model, pull it into the Ollama container and set `OLLAMA_MODEL` in your environment before starting Compose. Smaller models may misinterpret a request; verify behavior before relying on them.
-
-### Web interface and security
-
-The web demo runs with `docker compose up -d web` and is bound to `127.0.0.1:5080`. The API key remains on the server and never belongs in browser code. Sessions and balances are held in memory and reset on restart. The app is a local exercise, not production banking software: it has no user authentication, durable storage, transaction audit trail, or production-grade access controls. Hosting a static page alone cannot run the .NET simulator; public deployment would require a secured server and further design.
-
-In the web interface, direct transaction commands also receive a conversational explanation based on the simulator result; `help` and `?` show a friendly guide with examples. If the explanation service fails, the original result is displayed. The CLI preserves the original command output and works for those commands without an API key.
-
-The account cards read balances from the same simulator session after each request. The model receives the original request and its structured interpretation and generated reply can be viewed in processing details. Account aliases and uncertain interpretations require confirmation; other unsupported or ambiguous phrases require the user to try again. Account names not present in the request or a supported alias are not used to execute a generated command. Language handling is limited and models can still misinterpret amounts or intent. In the web demo, `exit` ends the current simulated session; a new session starts at zero.
-
-For HTTPS behind Azure ingress, `APP_PUBLIC_ORIGIN` can be set to the exact public HTTPS origin (for example `https://example.azurecontainerapps.io`). This enables that host and secure session cookies. Azure-specific ingress, secret management, access control, request limiting, and persistent session decisions must be configured and tested separately before exposing the demo.
-
-### Docker (no local .NET SDK required)
-
-Install and start Docker Desktop with Linux containers. From the repository root:
-
-```sh
-docker compose run --rm banking
-```
-
-Enter commands at the `bank>` prompt, for example `deposit savings 10`,
-`transfer savings chequing 4`, `balance`, and `exit`. The accounts are kept
-in memory and reset when the application exits.
-
-To build without starting the application:
-
-```sh
-docker compose run --rm banking dotnet build BankingCli.sln
-```
-
-The repository is mounted into the container, so edits on your machine are
-available there. A named Docker volume caches NuGet packages. To work in VS
-Code, install the Dev Containers extension, open this repository, and choose
-**Dev Containers: Reopen in Container**. Run `dotnet run --project BankingCli`
-from its terminal.
-
-### Local .NET SDK
-
-With the .NET 10 SDK installed, run this from the repo root.
-
-```sh
-dotnet run --project BankingCli
-```
-
-In Visual Studio 2026 (18.0 or later), open `BankingCli.sln` and press F5. Visual Studio 2022 users can run the app from a terminal using the .NET 10 SDK.
-
-## Commands
-
-| Command | Effect |
-| --- | --- |
-| `deposit <account> <amount>` | Add money to an account. |
-| `withdraw <account> <amount>` | Take money out of an account. |
-| `transfer <from> <to> <amount>` | Move money between accounts. |
-| `balance [account]` | Show one balance or both balances when the account is omitted. |
-| `help` or `?` | Show the command list. |
-| `exit` | End the session. |
-
-Accounts are `chequing` and `savings`. Amounts are positive, with up to two decimal places, such as `5` or `5.25`. Withdrawals and transfers require sufficient funds, and transfers require two different accounts. A failed command leaves both balances as they were.
-
-```text
-bank> deposit savings 10
-DEPOSIT $10.00 TO savings | savings=$10.00
-bank> transfer savings chequing 4
-TRANSFER $4.00 FROM savings TO chequing | savings=$6.00 | chequing=$4.00
-bank> withdraw chequing 1
-WITHDRAW $1.00 FROM chequing | chequing=$3.00
-bank> balance
-chequing=$3.00 | savings=$6.00
-bank> exit
-EXIT
-```
-# Azure Container Apps
-
-See [the Azure deployment guide](deploy/AZURE.md) for the two-container,
-single-replica setup, temporary Ollama model storage, and portal instructions.
+This is a demo, not a production banking service. See [Azure deployment notes](deploy/AZURE.md) for the hosted configuration.
