@@ -42,6 +42,15 @@ internal sealed class RequestInterpreter(OpenAiClient client)
         JSON: {"operation":"withdraw","account":"savings","destination":null,"amount":"7"}
         Request: deposit 10 dollars to savings
         JSON: {"operation":"deposit","account":"savings","destination":null,"amount":"10"}
+        Request: retira 1 de la cuenta corriente
+        JSON: {"operation":"withdraw","account":"chequing","destination":null,"amount":"1","needs_clarification":false,"needs_confirmation":true}
+        Request: retira 1 de la cuenta de ahorros
+        JSON: {"operation":"withdraw","account":"savings","destination":null,"amount":"1","needs_clarification":false,"needs_confirmation":true}
+        Request: transfiere de la cuenta de ahorros a la cuenta corriente 5
+        JSON: {"operation":"transfer","account":"savings","destination":"chequing","amount":"5","needs_clarification":false,"needs_confirmation":true}
+        Request: Transfer 4 dollars from my current account to savings.
+        JSON: {"operation":"transfer","account":"chequing","destination":"savings","amount":"4","needs_clarification":false,"needs_confirmation":true}
+        Withdrawal amounts must be positive, never negative. A numeric amount may appear at the end of the request.
         Set needs_clarification true if essential information is absent or ambiguous, or multiple operations are requested.
         Set needs_confirmation true if spelling, translation, or uncertainty could change the intended operation, account, amount, or direction.
         """;
@@ -55,11 +64,15 @@ internal sealed class RequestInterpreter(OpenAiClient client)
             using JsonDocument document = JsonDocument.Parse(json);
             JsonElement root = document.RootElement;
             string? operation = root.GetProperty("operation").GetString();
-            string? account = root.GetProperty("account").GetString();
-            string? destination = root.GetProperty("destination").GetString();
+            string? account = NormalizeAccount(root.GetProperty("account").GetString(), out bool accountAlias);
+            string? destination = NormalizeAccount(root.GetProperty("destination").GetString(), out bool destinationAlias);
             string? amount = root.GetProperty("amount").GetString();
+            if (amount is not null && Regex.IsMatch(amount, @"^\+\d+(?:\.\d{1,2})?$")) amount = amount[1..];
             bool needsClarification = root.TryGetProperty("needs_clarification", out JsonElement clarify) && clarify.ValueKind == JsonValueKind.True;
             bool needsConfirmation = root.TryGetProperty("needs_confirmation", out JsonElement confirm) && confirm.ValueKind == JsonValueKind.True;
+            needsConfirmation |= accountAlias || destinationAlias;
+            // The model can reverse transfer direction even when both accounts are named.
+            if (operation == "transfer") needsConfirmation = true;
             bool validAccount = account is "savings" or "chequing";
             bool validDestination = destination is "savings" or "chequing";
             bool validAmount = amount is not null && Regex.IsMatch(amount, @"^\d+(\.\d{1,2})?$")
@@ -109,8 +122,24 @@ internal sealed class RequestInterpreter(OpenAiClient client)
 
     private static bool MentionsAccount(string input, string account)
     {
-        string pattern = account == "chequing" ? @"\b(?:chequing|checking|corriente|cheques|courant)\b" : @"\b(?:savings|saving|ahorros?|[ée]pargne)\b";
+        string pattern = account == "chequing" ? @"\b(?:chequing|checking|current|corriente|cheques|courant)\b" : @"\b(?:savings|saving|ahorros?|[ée]pargne)\b";
         return Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    // Accept only known aliases; the original user input is checked separately before execution.
+    private static string? NormalizeAccount(string? value, out bool alias)
+    {
+        alias = false;
+        if (value is null) return null;
+        string name = value.Trim().ToLowerInvariant();
+        string normalized = name switch
+        {
+            "checking" or "current" or "corriente" or "cheques" or "courant" => "chequing",
+            "saving" or "ahorro" or "ahorros" or "épargne" or "epargne" => "savings",
+            _ => name
+        };
+        alias = normalized != name && normalized is "chequing" or "savings";
+        return normalized;
     }
 }
 

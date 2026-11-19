@@ -32,9 +32,9 @@ internal sealed class BankingAssistant : IDisposable
             string? previousInterpretation = pendingInterpretation;
             pendingCommand = null;
             pendingInterpretation = null;
-            if (confirmation is "yes" or "y" or "confirm" or "sí" or "si")
+            if (confirmation is "yes" or "y" or "confirm" or "sí" or "si" or "oui")
                 return (await ExecuteCommandAsync(previousCommand, bank)) with { AiInterpretation = previousInterpretation };
-            if (confirmation is "no" or "n" or "cancel")
+            if (confirmation is "no" or "n" or "cancel" or "non")
                 return new("Cancelled. No transaction was made.", "cancelled", null, false);
             // A new request replaces any pending proposal; it is never implicitly confirmed.
         }

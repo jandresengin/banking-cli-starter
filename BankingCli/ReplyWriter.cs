@@ -28,7 +28,14 @@ internal sealed class ReplyWriter(OpenAiClient client)
     public async Task<string> ExplainAsync(string result)
     {
         string response = (await client.CompleteAsync(Prompt, result, structured: false)).Trim();
-        return IsPlausible(response, result) ? response : result;
+        if (IsPlausible(response, result)) return response;
+        // Retry only the explanation, never the simulator transaction.
+        string retryPrompt = "You explain a banking simulator result in everyday English. " +
+            "Your previous explanation was rejected. Use only the authoritative result below; " +
+            "match each account to its own balance exactly. Do not swap balances or invent a transaction. " +
+            "Return only the corrected explanation.";
+        string retry = (await client.CompleteAsync(retryPrompt, $"Authoritative simulator result: {result}\nRejected explanation: {response}", structured: false)).Trim();
+        return IsPlausible(retry, result) ? retry : result;
     }
 
     private static bool IsPlausible(string response, string result)
@@ -44,9 +51,9 @@ internal sealed class ReplyWriter(OpenAiClient client)
         if (!result.StartsWith("ERROR") && Regex.IsMatch(response, @"\b(?:cannot|can't|couldn't|unable|declined|failed|insufficient)\b", RegexOptions.IgnoreCase)) return false;
         bool isBalance = result.StartsWith("savings=") || result.StartsWith("chequing=");
         if (isBalance && Regex.IsMatch(response, @"\b(?:move[ds]?|moving|transfer(?:red|s|ring)?|deposit(?:ed|s|ing)?|withdraw(?:n|s|ing)?|withdrew|sent)\b", RegexOptions.IgnoreCase)) return false;
-        if (isBalance)
+        if (isBalance || result.StartsWith("TRANSFER "))
         {
-            foreach (string item in result.Split(" | "))
+            foreach (string item in result.Split(" | ").Where(item => item.Contains('=')))
             {
                 string[] pair = item.Split('=', 2);
                 if (pair.Length != 2) return false;

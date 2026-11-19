@@ -1,0 +1,29 @@
+# Local approximation of the Azure replica: both containers share localhost.
+name: banking-azure-test
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    ports:
+      - "127.0.0.1:5082:8080"
+    environment:
+      OPENAI_BASE_URL: http://127.0.0.1:11434/v1
+      OPENAI_API_KEY: ollama
+      OPENAI_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+      OPENAI_TEMPERATURE: "0"
+      DIRECT_OPENAI_API_KEY: ${DIRECT_OPENAI_API_KEY:-}
+      DIRECT_OPENAI_MODEL: ${DIRECT_OPENAI_MODEL:-gpt-6-luna}
+  ollama:
+    build:
+      context: .
+      dockerfile: deploy/ollama/Dockerfile
+    network_mode: service:web
+    depends_on:
+      - web
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
+    volumes:
+      - models:/root/.ollama
+volumes:
+  models:

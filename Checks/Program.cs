@@ -9,9 +9,28 @@ bank.Execute("deposit savings 10");
 FakeApi api = new();
 using BankingAssistant assistant = new(new HttpClient(api));
 
+api.Enqueue("{\"operation\":\"deposit\",\"account\":\"checking\",\"destination\":null,\"amount\":\"+20\"}");
+Check((await assistant.ExecuteDetailedAsync("Please deposit 20 dollars into my checking account", bank)).Command == "deposit chequing 20", "positive sign and checking alias normalized");
+await assistant.ExecuteAsync("no", bank);
+api.Enqueue("{\"operation\":\"deposit\",\"account\":\"current\",\"destination\":null,\"amount\":\"10\"}");
+Check((await assistant.ExecuteDetailedAsync("Pay 10 dollars into my current account", bank)).Command == "deposit chequing 10", "British current account recognized");
+await assistant.ExecuteAsync("non", bank);
+api.Enqueue("{\"operation\":\"transfer\",\"account\":\"savings\",\"destination\":\"chequing\",\"amount\":\"4\",\"needs_confirmation\":false}");
+Check((await assistant.ExecuteDetailedAsync("Transfer 4 dollars from my current account to savings", bank)).Stage == "confirmation_required", "reversed model transfer never executes without confirmation");
+await assistant.ExecuteAsync("no", bank);
+
+api.Enqueue("{\"operation\":\"deposit\",\"account\":\"corriente\",\"destination\":null,\"amount\":\"40\",\"needs_clarification\":false,\"needs_confirmation\":true}");
+AssistantResult aliasProposal = await assistant.ExecuteDetailedAsync("Hola por favor deposita 40 dolares en la cuenta corriente", bank);
+Check(aliasProposal.Stage == "confirmation_required" && aliasProposal.Command == "deposit chequing 40", "model account alias requires confirmation");
+Check(bank.Execute("balance").Output == "chequing=$0.00 | savings=$10.00", "alias proposal leaves balances unchanged");
+Check((await assistant.ExecuteAsync("no", bank)).StartsWith("Cancelled"), "alias proposal can be cancelled");
+api.Enqueue("{\"operation\":\"deposit\",\"account\":\"corriente\",\"destination\":null,\"amount\":\"40\"}");
+Check((await assistant.ExecuteDetailedAsync("Deposit 40 into savings", bank)).Stage == "clarification", "invented alias is not executed");
+
 api.Enqueue("{\"operation\":\"transfer\",\"account\":\"savings\",\"destination\":\"chequing\",\"amount\":\"4\"}");
+Check((await assistant.ExecuteDetailedAsync("Move four dollars from savings to chequing", bank)).Stage == "confirmation_required", "transfer requires confirmation");
 api.Enqueue("I moved $4.00 from savings to chequing. You now have $6.00 in savings and $4.00 in chequing.");
-string success = await assistant.ExecuteAsync("Move four dollars from savings to chequing", bank);
+string success = await assistant.ExecuteAsync("yes", bank);
 Check(success == "I moved $4.00 from savings to chequing. You now have $6.00 in savings and $4.00 in chequing.", "successful conversational transfer");
 Check(bank.Execute("balance").Output == "chequing=$4.00 | savings=$6.00", "transfer balances");
 
@@ -31,13 +50,15 @@ api.Enqueue("I couldn’t complete that transaction because there aren’t enoug
 Check((await assistant.ExplainResultAsync("withdraw savings 100", "ERROR INSUFFICIENT_FUNDS | savings=$6.00")).Output.Contains("couldn’t"), "friendly reply accepts typographic apostrophes");
 
 api.Enqueue("{\"operation\":\"transfer\",\"account\":\"savings\",\"destination\":\"chequing\",\"amount\":\"1\"}");
+Check((await assistant.ExecuteDetailedAsync("Move one dollar from savings to chequing", bank)).Stage == "confirmation_required", "transfer confirmation before reply failure");
 api.EnqueueFailure();
-Check((await assistant.ExecuteAsync("Move one dollar from savings to chequing", bank)).StartsWith("TRANSFER $1.00"), "reply failure returns original result");
+Check((await assistant.ExecuteAsync("yes", bank)).StartsWith("TRANSFER $1.00"), "reply failure returns original result");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$5.00", "reply failure does not repeat transfer");
 
 api.EnqueueFailure();
 Check((await assistant.ExecuteAsync("Check my balances", bank)).Contains("No transaction was made"), "interpretation failure");
 api.Enqueue("{\"operation\":\"deposit\",\"account\":\"savings\",\"destination\":null,\"amount\":\"2\"}");
+api.Enqueue("I deposited $200.00 into savings.");
 api.Enqueue("I deposited $200.00 into savings.");
 Check((await assistant.ExecuteAsync("Deposit two dollars into savings", bank)).StartsWith("DEPOSIT $2.00"), "incorrect generated reply falls back to simulator result");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$7.00", "rejected reply does not repeat deposit");
@@ -64,8 +85,13 @@ original = bank.Execute("withdraw savings 1").Output;
 api.EnqueueFailure();
 Check((await assistant.ExplainResultAsync("withdraw savings 1", original)).Output == original, "original command reply failure returns simulator result");
 Check(bank.Execute("balance").Output == "chequing=$5.00 | savings=$18.00", "original command reply failure does not repeat withdrawal");
+api.Enqueue("I transferred $4.00 from savings to chequing. You now have $43.00 in chequing and $4.00 in savings.");
+api.Enqueue("I moved $4.00 from savings to chequing. You now have $16.00 in savings and $43.00 in chequing.");
+Check((await assistant.ExplainResultAsync("transfer savings chequing 4", "TRANSFER $4.00 FROM savings TO chequing | savings=$16.00 | chequing=$43.00")).Output.Contains("$16.00 in savings"), "incorrect transfer explanation is retried without executing a transaction");
+api.Enqueue("I moved $5.00 from chequing to savings. Savings is $18.00.");
 api.Enqueue("I moved $5.00 from chequing to savings. Savings is $18.00.");
 Check((await assistant.ExplainResultAsync("balance", "chequing=$5.00 | savings=$18.00")).Output == "chequing=$5.00 | savings=$18.00", "balance reply cannot claim a transfer occurred");
+api.Enqueue("You have $18.00 in chequing and $5.00 in savings.");
 api.Enqueue("You have $18.00 in chequing and $5.00 in savings.");
 Check((await assistant.ExplainResultAsync("balance", "chequing=$5.00 | savings=$18.00")).Output == "chequing=$5.00 | savings=$18.00", "balance reply cannot swap account amounts");
 api.Enqueue("{\"operation\":\"deposit\",\"account\":\"savings\",\"destination\":null,\"amount\":\"10\"}");

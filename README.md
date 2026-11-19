@@ -1,5 +1,23 @@
 # banking-cli-starter
 
+## Quick start for reviewers
+
+Install and start Docker Desktop: [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Use Linux containers. Install [Git](https://git-scm.com/install/) or download the repository as a ZIP from GitHub.
+
+Clone the solution branch and start the local web application:
+
+```sh
+git clone --branch release/multilingual-banking-demo https://github.com/jandresengin/banking-cli-starter.git
+cd banking-cli-starter
+docker compose -f compose.optimized.yaml -f compose.model-setup.yaml up -d ollama
+docker compose -f compose.optimized.yaml -f compose.model-setup.yaml exec ollama ollama pull gemma3:1b
+docker compose -f compose.optimized.yaml up -d --build --force-recreate
+```
+
+Open http://localhost:5081. The first start downloads the container images and Gemma model; subsequent starts use `docker compose -f compose.optimized.yaml up -d`. Stop the application with `docker compose -f compose.optimized.yaml down`. The model volume is retained. Try `deposit savings 10`, `Move four dollars from savings to chequing`, or `balance`.
+
+This setup uses local Ollama through its OpenAI-compatible API and requires no API key. To enable the optional OpenAI provider in the web selector, create an untracked `.env` in the repository root containing `DIRECT_OPENAI_API_KEY` and optionally `DIRECT_OPENAI_MODEL`, then recreate the web container. Never commit the key. Provider availability and charges depend on your account. The simulator uses temporary in-memory balances.
+
 A small C# command-line banking simulator with in-memory chequing and savings accounts. Both accounts start at $0.00 each time you run the program. Original commands work directly; English requests use an OpenAI-compatible chat-completions API.
 
 ## API configuration
@@ -149,3 +167,7 @@ chequing=$3.00 | savings=$6.00
 bank> exit
 EXIT
 ```
+# Azure Container Apps
+
+See [the Azure deployment guide](deploy/AZURE.md) for the two-container,
+single-replica setup, temporary Ollama model storage, and portal instructions.
