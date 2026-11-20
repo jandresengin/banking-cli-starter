@@ -138,6 +138,69 @@ The following 20 English requests were also tested against the hosted applicatio
 
 In case 11, the Gemma session had less money because earlier deposits were not executed. English, French, and Spanish requests were also exercised. Luna handled all 20 English requests in this run, while Gemma needed clarification or produced less conversational replies in some cases. These observations do not establish performance across all inputs or languages.
 
+## Project structure
+
+### BankingCli — simulator and assistant
+
+This folder contains the banking logic shared by the console application and the web app.
+
+| File | Responsibility |
+| --- | --- |
+| [Program.cs](BankingCli/Program.cs) | Starts the console application. |
+| [BankingApplication.cs](BankingCli/BankingApplication.cs) | Runs the console loop, routes input, and displays results. |
+| [BankSession.cs](BankingCli/BankSession.cs) | Implements the simulator, in-memory balances, banking operations, and transaction rules. |
+| [CommandRouter.cs](BankingCli/CommandRouter.cs) | Distinguishes original simulator commands from natural-language requests. |
+| [BankingAssistant.cs](BankingCli/BankingAssistant.cs) | Coordinates interpretation, clarification, confirmation, command execution, and result explanation. |
+| [RequestInterpreter.cs](BankingCli/RequestInterpreter.cs) | Requests structured details from the model, normalizes supported aliases, validates the interpretation, and builds a command. |
+| [OpenAiClient.cs](BankingCli/OpenAiClient.cs) | Sends HTTP requests to the configured OpenAI-compatible API. |
+| [ReplyWriter.cs](BankingCli/ReplyWriter.cs) | Requests and validates a conversational explanation, retries rejected replies, and describes commands for confirmation. |
+| [BankingCli.csproj](BankingCli/BankingCli.csproj) | Configures the .NET console project. |
+
+### BankingWeb — interface and server
+
+| File | Responsibility |
+| --- | --- |
+| [Program.cs](BankingWeb/Program.cs) | Hosts the web API, manages in-memory sessions, routes requests, and configures the allowed origin and session cookie. |
+| [index.html](BankingWeb/wwwroot/index.html) | Defines the account overview, conversation, provider selector, and controls. |
+| [styles.css](BankingWeb/wwwroot/styles.css) | Styles the interface and responsive layout. |
+| [app.js](BankingWeb/wwwroot/app.js) | Sends browser requests and updates the conversation, balances, and processing details. |
+| [BankingWeb.csproj](BankingWeb/BankingWeb.csproj) | Configures the .NET 10 web project and includes the shared banking code. |
+
+Session balances are stored in server memory and are lost when the session ends or the server restarts.
+
+### Checks — verification
+
+| File | Responsibility |
+| --- | --- |
+| [Program.cs](Checks/Program.cs) | Runs automated simulator and assistant checks using a simulated API. |
+| [gemma_language_probe.py](Checks/gemma_language_probe.py) | Sends sample English, French, and mixed-language requests to a running local Gemma instance through the web app. |
+| [Checks.csproj](Checks/Checks.csproj) | Configures the executable checks project and its shared code. |
+
+The automated checks use simulated API responses. The language probe requires a running local model.
+
+### Deploy — deployment support
+
+| File | Responsibility |
+| --- | --- |
+| [ollama/Dockerfile](deploy/ollama/Dockerfile) | Builds the Ollama image used by the Azure-style configuration. |
+| [ollama/start.sh](deploy/ollama/start.sh) | Starts Ollama and downloads the configured model if it is unavailable. |
+| [AZURE.md](deploy/AZURE.md) | Documents the Azure Container Apps configuration. |
+
+### Root files
+
+| File | Responsibility |
+| --- | --- |
+| [BankingCli.sln](BankingCli.sln) | Defines the .NET solution containing the console project. |
+| [Dockerfile](Dockerfile) | Provides a .NET SDK image for development with mounted source files. |
+| [Dockerfile.runtime](Dockerfile.runtime) | Builds and publishes the web app, then runs it in a smaller ASP.NET runtime image. |
+| [compose.yaml](compose.yaml) | Defines the development containers for the console and web app. |
+| [compose.local.yaml](compose.local.yaml) | Adds local Ollama configuration to the base Compose setup. |
+| [compose.optimized.yaml](compose.optimized.yaml) | Defines an optimized local web app and Ollama setup. |
+| [compose.model-setup.yaml](compose.model-setup.yaml) | Temporarily provides network access for downloading the model in the optimized setup. |
+| [compose.azure-test.yaml](compose.azure-test.yaml) | Approximates Azure's shared localhost networking and serves the local web app on port 5082. |
+| [README.md](README.md) | Describes setup, behavior, examples, checks, and deployment. |
+| [LICENSE](LICENSE) | Contains the repository license. |
+
 ## Azure deployment
 
 The Docker images are built locally and pushed to Azure Container Registry (ACR). Azure Container Apps runs the .NET web application and Ollama as two containers in the same replica. The environment is configured to keep at least one replica available. The web application is exposed over HTTPS, while Ollama is reached by the web application over localhost.
