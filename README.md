@@ -8,6 +8,37 @@ After the simulator executes a command, `ReplyWriter.cs` asks the selected model
 
 Balances are simulated and stored in server memory for each session. They reset when the user ends the session with `exit` or the server restarts. The application uses two Docker containers: one for the .NET web application and simulator, and one for Ollama and the local Gemma model.
 
+## Screenshots
+
+**Local Gemma deposit.** The assistant interprets the request, asks for confirmation, and displays the simulator result and generated reply.
+
+![Gemma deposit with confirmation and processing details](docs/screenshots/gemma-deposit.png)
+
+<details>
+<summary>OpenAI transfer with French confirmation</summary>
+
+The user confirms with “Oui”; the assistant executes the transfer and displays the updated balances.
+
+![OpenAI transfer confirmed in French](docs/screenshots/openai-transfer.png)
+
+</details>
+
+<details>
+<summary>Single-account and combined balance checks</summary>
+
+![OpenAI balance checks for one and both accounts](docs/screenshots/balance-checks.png)
+
+</details>
+
+<details>
+<summary>Insufficient funds and a request needing clarification</summary>
+
+The simulator declines the withdrawal, and the incomplete transfer prompts for the missing account.
+
+![Declined withdrawal and incomplete transfer](docs/screenshots/declined-and-clarification.png)
+
+</details>
+
 ## Run locally
 
 1. Install [Git](https://git-scm.com/install/) and Docker Desktop for [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Start Docker Desktop with Linux containers and wait for the engine to be running.
