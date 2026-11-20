@@ -216,6 +216,13 @@ The automated checks use simulated API responses. The language probe requires a 
 | [README.md](README.md) | Describes setup, behavior, examples, checks, and deployment. |
 | [LICENSE](LICENSE) | Contains the repository license. |
 
+## How I worked with Codex
+
+1. **Plan the solution.** I used ChatGPT and Codex with a higher-capability model, such as Astra or Sol, to explore the requirements, define the request flow, and set implementation guidelines. I aimed to preserve the starter's simulator behavior and organize the additions in separate classes.
+2. **Implement in stages.** Once the workflow was defined, I used models such as Luna or Terra for individual implementation and review tasks. I provided examples, constraints, and feedback as the console assistant, web interface, and container setup took shape.
+3. **Review and refine.** An initial proposal used three containers. After reviewing the application's needs and resource usage, I directed Codex to combine the web frontend and backend into one container and keep Ollama separate. I also chose an Alpine-based .NET runtime image to reduce the web image size.
+4. **Verify decisions.** I accepted the suggestion to validate AI-generated replies against simulator results. When the local model swapped account balances in a reply, I checked that the application rejected the wording. Automated checks also simulated a reply API failure and verified that the transaction was not repeated. I tested both providers with the requests listed above.
+
 ## Azure deployment
 
 The Docker images are built locally and pushed to Azure Container Registry (ACR). Azure Container Apps runs the .NET web application and Ollama as two containers in the same replica. The environment is configured to keep at least one replica available. The web application is exposed over HTTPS, while Ollama is reached by the web application over localhost.
