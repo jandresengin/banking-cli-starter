@@ -48,7 +48,7 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
 
    Example console output after cloning the repository and entering the project directory:
 
-   ![Example console output from cloning the repository](docs/screenshots/clone-console.png)
+   ![Example console output from cloning the repository](docs/screenshots/clone-main-console.png)
 
 3. To use OpenAI, create a file named `.env` in the project directory with these two lines:
 
