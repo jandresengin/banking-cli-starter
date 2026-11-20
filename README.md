@@ -40,6 +40,10 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
    cd banking-cli-starter
    ```
 
+   Example console output after cloning and entering the project directory:
+
+   ![Console output showing the repository being cloned](docs/screenshots/clone-console.png)
+
 3. To use OpenAI, create a file named `.env` in the project directory with these two lines:
 
    ```dotenv
@@ -55,15 +59,33 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
    docker compose -f compose.azure-test.yaml up -d --build
    ```
 
-   On first launch, Ollama downloads `gemma3:1b`; this can take several minutes. Check readiness with:
+   Building and downloading images can take several minutes depending on your internet connection and whether the images are already cached locally.
+
+   ![Console output showing the container images being built](docs/screenshots/docker-build-console.png)
+
+   On first launch, Ollama also downloads `gemma3:1b`; this may take several minutes. Check model readiness with:
 
    ```sh
    docker compose -f compose.azure-test.yaml logs -f ollama
    ```
 
-   When the log says the model is available, open [http://localhost:5082](http://localhost:5082) and select **Gemma 3 · local** or **OpenAI**. If you change `.env` later, rerun the `up` command to recreate the web container.
+   When the log says the model is available, open [http://127.0.0.1:5082/](http://127.0.0.1:5082/) or [http://localhost:5082](http://localhost:5082) and select **Gemma 3 · local** or **OpenAI**. If you change `.env` later, rerun the build and start command to recreate the web container.
 
-5. Stop the app with `docker compose -f compose.azure-test.yaml down`. The local model volume is retained. Sessions and balances reset when the server restarts.
+5. To start the containers and follow their logs in the console, run:
+
+   ```sh
+   docker compose -f compose.azure-test.yaml up
+   ```
+
+   ![Console output showing running containers and application logs](docs/screenshots/docker-running-console.png)
+
+   The console remains attached to the containers and displays their logs. Press `Ctrl+C` to stop them, or use a second terminal to stop and remove the containers and network:
+
+   ```sh
+   docker compose -f compose.azure-test.yaml down
+   ```
+
+   The local model volume is retained. Sessions and balances reset when the server restarts.
 
 ## Try it
 
