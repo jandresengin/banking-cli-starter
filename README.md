@@ -1,5 +1,7 @@
 # Virtual Bank Assistant
 
+[Screenshots](#screenshots) · [Run locally](#run-locally) · [Try it](#try-it) · [Checks](#checks) · [Project structure](#project-structure) · [Azure deployment](#azure-deployment)
+
 A .NET 10 virtual banking assistant with a web interface for deposits, withdrawals, transfers, balance checks, and help. The `BankingCli` module simulates a banking system with predefined commands and banking rules.
 
 The assistant routes original commands directly to the simulator. For natural-language requests, the selected model—local Gemma 3 through Ollama or OpenAI Luna—interprets the original message through an OpenAI-compatible API. `RequestInterpreter.cs` requests structured operation details, normalizes supported account aliases, validates the result, and builds a simulator command. Missing or unclear details prompt the user to try again. Interpreted transfers and other uncertain requests require confirmation before execution.
@@ -93,11 +95,24 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
 
 ## Try it
 
-- `Deposit ten dollars into savings.`
-- `Move four dollars from savings to chequing.`
-- `What are my balances?`
-- `Withdraw 100 dollars from savings.`
-- `Move four dollars.` — missing accounts require clarification.
+The chat on the right accepts original commands and everyday requests interpreted by the selected model. The account cards on the left show the simulated savings and chequing balances for the current in-memory session.
+
+Try these requests in English or French. Start with a deposit before making withdrawals or transfers. If asked to confirm, check the proposed operation and reply `yes` or `no`.
+
+| Operation | Example request |
+| --- | --- |
+| Deposit | `Deposit 20 dollars into my savings account.` |
+| Deposit | `Please put 15 dollars in my chequing account.` |
+| Deposit | `Dépose 10 dollars dans mon compte d'épargne.` |
+| Withdraw | `Take 2 dollars out of my chequing account.` |
+| Withdraw | `Retire 2 dollars de mon compte d'épargne.` |
+| Transfer | `Move 4 dollars from savings to chequing.` |
+| Transfer | `Transfère 3 dollars du compte courant vers le compte d'épargne.` |
+| Balance | `What is my chequing account balance?` |
+| Balance | `What are my balances?` |
+| Balance | `Quel est le solde de mon compte d'épargne ?` |
+
+The models can interpret the same request differently. If details are unclear, the assistant may ask you to try again. Review the proposed command before confirming.
 
 Original commands remain available: `deposit <account> <amount>`, `withdraw <account> <amount>`, `transfer <from> <to> <amount>`, `balance [account]`, `help`, `?`, and `exit`. Accounts are `savings` and `chequing`; amounts must be positive with at most two decimal places.
 
