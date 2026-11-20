@@ -42,13 +42,9 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
 2. Clone this branch and enter the project directory:
 
    ```sh
-   git clone --branch release/multilingual-banking-demo https://github.com/jandresengin/banking-cli-starter.git
+   git clone https://github.com/jandresengin/banking-cli-starter.git
    cd banking-cli-starter
    ```
-
-   Example console output after cloning and entering the project directory:
-
-   ![Console output showing the repository being cloned](docs/screenshots/clone-console.png)
 
 3. To use OpenAI, create a file named `.env` in the project directory with these two lines:
 
