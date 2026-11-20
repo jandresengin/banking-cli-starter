@@ -46,6 +46,10 @@ The simulator declines the withdrawal, and the incomplete transfer prompts for t
    cd banking-cli-starter
    ```
 
+   The following screenshot illustrates the console output from an earlier clone. It shows a former branch name; use the command above to clone the current default branch.
+
+   ![Example console output from cloning the repository](docs/screenshots/clone-console.png)
+
 3. To use OpenAI, create a file named `.env` in the project directory with these two lines:
 
    ```dotenv
