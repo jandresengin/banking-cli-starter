@@ -14,30 +14,21 @@ Balances are simulated and stored in server memory for each session. They reset 
 
 ![Gemma deposit with confirmation and processing details](docs/screenshots/gemma-deposit.png)
 
-<details>
-<summary>OpenAI transfer with French confirmation</summary>
+**OpenAI transfer with French confirmation.**
 
 The user confirms with “Oui”; the assistant executes the transfer and displays the updated balances.
 
 ![OpenAI transfer confirmed in French](docs/screenshots/openai-transfer.png)
 
-</details>
-
-<details>
-<summary>Single-account and combined balance checks</summary>
+**Single-account and combined balance checks.**
 
 ![OpenAI balance checks for one and both accounts](docs/screenshots/balance-checks.png)
 
-</details>
-
-<details>
-<summary>Insufficient funds and a request needing clarification</summary>
+**Insufficient funds and a request needing clarification.**
 
 The simulator declines the withdrawal, and the incomplete transfer prompts for the missing account.
 
 ![Declined withdrawal and incomplete transfer](docs/screenshots/declined-and-clarification.png)
-
-</details>
 
 ## Run locally
 
@@ -121,9 +112,8 @@ The following 20 English requests were also tested against the hosted applicatio
 
 In case 11, the Gemma session had less money because earlier deposits were not executed. English, French, and Spanish requests were also exercised. Luna handled all 20 English requests in this run, while Gemma needed clarification or produced less conversational replies in some cases. These observations do not establish performance across all inputs or languages.
 
-## How I worked
+## Azure deployment
 
-- Used OpenAI Codex to assist with implementation, containers, and verification.
-- Accepted the suggestion to validate model responses and return the simulator result if explanation generation fails. Checked it with simulated incorrect responses and an API failure to verify the transaction was not repeated.
+The Docker images are built locally and pushed to Azure Container Registry (ACR). Azure Container Apps runs the .NET web application and Ollama as two containers in the same replica. The environment is configured to keep at least one replica available. The web application is exposed over HTTPS, while Ollama is reached by the web application over localhost.
 
-This is a demo, not a production banking service. See [Azure deployment notes](deploy/AZURE.md) for the hosted configuration.
+The OpenAI API key is stored as a Container Apps secret and referenced by the web container. The model names and service endpoints are configured as environment variables. The deployed app follows the local two-container design; local Docker volumes and Azure's temporary container storage have different persistence behavior. See [Azure deployment notes](deploy/AZURE.md) for configuration details.
