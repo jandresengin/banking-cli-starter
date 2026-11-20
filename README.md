@@ -1,10 +1,16 @@
 # Virtual Bank Assistant
 
-A .NET 10 banking simulator with a web interface. Ask in everyday English, or use the original commands. Choose local Gemma through Ollama or an OpenAI model through the selector. Both use an OpenAI-compatible API. Balances are simulated and kept in memory.
+A .NET 10 virtual banking assistant with a web interface for deposits, withdrawals, transfers, balance checks, and help. The `BankingCli` module simulates a banking system with predefined commands and banking rules.
+
+The assistant routes original commands directly to the simulator. For natural-language requests, the selected model—local Gemma 3 through Ollama or OpenAI Luna—interprets the original message through an OpenAI-compatible API. `RequestInterpreter.cs` requests structured operation details, normalizes supported account aliases, validates the result, and builds a simulator command. Missing or unclear details prompt the user to try again. Interpreted transfers and other uncertain requests require confirmation before execution.
+
+After the simulator executes a command, `ReplyWriter.cs` asks the selected model to explain the actual result in everyday English. Its prompt includes examples, and the application checks the generated reply against the simulator result. If generation fails or validation rejects the reply, the original result is shown without executing the transaction again. In the web interface, **View processing details** shows the selected provider, available interpretation and command, simulator result, generated reply, and processing outcome. Model outputs are not a view of the model's hidden reasoning.
+
+Balances are simulated and stored in server memory for each session. They reset when the user ends the session with `exit` or the server restarts. The application uses two Docker containers: one for the .NET web application and simulator, and one for Ollama and the local Gemma model.
 
 ## Run locally
 
-1. Install [Git](https://git-scm.com/install/) and Docker Desktop for [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Start Docker Desktop with Linux containers.
+1. Install [Git](https://git-scm.com/install/) and Docker Desktop for [Windows](https://docs.docker.com/desktop/setup/install/windows-install/), [macOS](https://docs.docker.com/desktop/setup/install/mac-install/), or [Linux](https://docs.docker.com/desktop/setup/install/linux/). Start Docker Desktop with Linux containers and wait for the engine to be running.
 2. Clone this branch and enter the project directory:
 
    ```sh
@@ -47,7 +53,7 @@ A .NET 10 banking simulator with a web interface. Ask in everyday English, or us
 
 Original commands remain available: `deposit <account> <amount>`, `withdraw <account> <amount>`, `transfer <from> <to> <amount>`, `balance [account]`, `help`, `?`, and `exit`. Accounts are `savings` and `chequing`; amounts must be positive with at most two decimal places.
 
-The model interprets natural-language requests. Code validates the details and requests clarification or confirmation before executing when required. The simulator then executes once, and the model explains the result. If explanation generation fails or its facts fail validation, the original simulator result is shown without executing the command again. Processing details show the simulator result and model responses.
+To run the original CLI in Docker, use `docker compose run --rm banking`. For natural-language requests in the CLI, set `OPENAI_API_KEY`, `OPENAI_MODEL`, and optionally `OPENAI_BASE_URL` in your environment or local `.env` file. The base URL defaults to `https://api.openai.com/v1` and must be an OpenAI-compatible API endpoint. These CLI variables are separate from the web selector's `DIRECT_OPENAI_*` settings above.
 
 ## Checks
 
@@ -56,6 +62,33 @@ Run the automated checks with `docker compose run --rm banking dotnet run --proj
 1. Deposit $10 into savings and transfer $4 to chequing: balances were $6 and $4.
 2. Ask to move $4 without accounts: the app requested clarification and balances stayed unchanged.
 3. Simulate a reply API failure after a $1 transfer: the original simulator result was returned and the transfer ran once.
+
+The following 20 English requests were also tested against the hosted application using separate simulated sessions for Gemma 3 and OpenAI Luna. Confirmation was given when requested. Results describe one observed run and may vary with model output.
+
+| # | Conversational request | Gemma 3 local | OpenAI Luna |
+|---|---|---|---|
+| 1 | Could you deposit 20 dollars into my savings account? | Omitted amount; asked for clarification | Correct deposit |
+| 2 | Please put 15 dollars in my chequing account. | Omitted amount; asked for clarification | Correct deposit |
+| 3 | Add 7 dollars to savings, please. | Correct deposit after confirmation | Correct deposit |
+| 4 | Can you put 8 dollars into checking? | Correct deposit after confirmation | Correct deposit |
+| 5 | I would like to deposit 4 dollars into savings. | Correct deposit after confirmation | Correct deposit |
+| 6 | Please withdraw 3 dollars from savings. | Correct withdrawal after confirmation | Correct withdrawal |
+| 7 | Take 2 dollars out of my chequing account. | Correct withdrawal after confirmation | Correct withdrawal |
+| 8 | Can I withdraw 5 dollars from savings? | Correct withdrawal after confirmation | Correct withdrawal |
+| 9 | Please take 1 dollar from my checking account. | Correct withdrawal after confirmation | Correct withdrawal |
+| 10 | Withdraw 999 dollars from savings, please. | Omitted amount; asked for clarification | Declined for insufficient funds |
+| 11 | Move 4 dollars from savings to chequing. | Correct interpretation; declined for insufficient funds | Correct transfer |
+| 12 | Please transfer 3 dollars from chequing to savings. | Correct transfer; response contained “Transfered” | Correct transfer |
+| 13 | Can you move 2 dollars from savings into checking? | Correct transfer after confirmation | Correct transfer |
+| 14 | Send 1 dollar from my chequing account to my savings account. | Correct transfer; original simulator result shown | Correct transfer |
+| 15 | Transfer 5 dollars to savings. | Asked for missing source account | Asked for missing source account |
+| 16 | What are my balances? | Correct balances after confirmation | Correct balances |
+| 17 | How much money is in my savings account? | Correct balance; terse reply `Savings=$5.00` | Correct balance |
+| 18 | What is my chequing account balance? | Correct balance; reply included `Reply:` | Correct balance |
+| 19 | Can you show my checking balance? | Correct balance; reply included `Reply:` | Correct balance |
+| 20 | How much do I have in both accounts? | Correct balances after confirmation | Correct balances |
+
+In case 11, the Gemma session had less money because earlier deposits were not executed. English, French, and Spanish requests were also exercised. Luna handled all 20 English requests in this run, while Gemma needed clarification or produced less conversational replies in some cases. These observations do not establish performance across all inputs or languages.
 
 ## How I worked
 
